@@ -2,8 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 export async function analyzeScreenshotColors(base64Image: string): Promise<{ backgroundColor: string, accentColor: string }> {
-  // Check if API Key is configured
-  const apiKey = process.env.API_KEY;
+  // Check if API Key is configured safely (handling browser environments where process might be undefined)
+  const apiKey = (typeof process !== "undefined" && process.env) ? process.env.API_KEY : undefined;
 
   // If no API key is present, return defaults immediately without initializing the SDK
   if (!apiKey) {
