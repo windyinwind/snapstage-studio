@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { STORE_PRESETS, Dimension, ImageState, LayoutMode, TextConfig } from './types';
 import { analyzeScreenshotColors } from './services/geminiService';
@@ -249,6 +248,23 @@ const App: React.FC = () => {
     setDraggedIdx(null);
   };
 
+  const removeImage = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setImages(prev => {
+      const filtered = prev.filter(img => img.id !== id);
+      if (selectedId === id) {
+        setSelectedId(filtered.length > 0 ? filtered[0].id : null);
+      }
+      return filtered;
+    });
+    // Remove from cache as well
+    setPreviewCache(prev => {
+      const newCache = { ...prev };
+      delete newCache[id];
+      return newCache;
+    });
+  };
+
   // Scroll to selected effect
   useEffect(() => {
     if (selectedId) {
@@ -398,7 +414,6 @@ const App: React.FC = () => {
       });
 
       const totalTextHeight = finalLines.length * lineHeight;
-      // Added spacing property to shift the device down relative to the text
       imageAreaY = tConfig.padding + totalTextHeight + tConfig.spacing;
       imageAreaHeight = canvas.height - imageAreaY;
     }
@@ -620,9 +635,17 @@ const App: React.FC = () => {
                   onDragOver={(e) => handleDragOver(e, idx)}
                   onDragEnd={handleDragEnd}
                   onClick={() => setSelectedId(img.id)} 
-                  className={`aspect-[9/16] rounded-lg cursor-grab active:cursor-grabbing border-2 transition-all relative overflow-hidden ${selectedId === img.id ? 'border-indigo-500 shadow-md ring-2 ring-indigo-50' : 'border-slate-100 hover:border-slate-300'} ${draggedIdx === idx ? 'opacity-40 scale-95' : 'opacity-100'}`}
+                  className={`aspect-[9/16] rounded-lg cursor-grab active:cursor-grabbing border-2 transition-all relative group overflow-hidden ${selectedId === img.id ? 'border-indigo-500 shadow-md ring-2 ring-indigo-50' : 'border-slate-100 hover:border-slate-300'} ${draggedIdx === idx ? 'opacity-40 scale-95' : 'opacity-100'}`}
                 >
                   <img src={img.originalUrl} alt={img.name} className="w-full h-full object-cover pointer-events-none" />
+                  <button 
+                    onClick={(e) => removeImage(img.id, e)}
+                    className="absolute top-1.5 right-1.5 w-7 h-7 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-all z-20 hover:bg-rose-600"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                 </div>
               ))}
               <button onClick={() => fileInputRef.current?.click()} className="aspect-[9/16] rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 hover:text-indigo-500 hover:border-indigo-500 transition-all">
@@ -822,7 +845,7 @@ const App: React.FC = () => {
                         <span>{t.textSpacing}</span>
                         <span className="text-indigo-600">{textConfig.spacing}px</span>
                       </div>
-                      <input type="range" min="0" max="400" value={textConfig.spacing} onChange={(e) => setTextConfig(prev => ({ ...prev, spacing: parseInt(e.target.value) }))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-indigo-600" />
+                      <input type="range" min="-150" max="400" value={textConfig.spacing} onChange={(e) => setTextConfig(prev => ({ ...prev, spacing: parseInt(e.target.value) }))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-indigo-600" />
                     </div>
                   </div>
                 </section>
