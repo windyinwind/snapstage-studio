@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { STORE_PRESETS, Dimension, ImageState, LayoutMode, TextConfig } from './types';
 import { analyzeScreenshotColors } from './services/geminiService';
@@ -8,11 +9,183 @@ const FONT_FAMILIES = [
   { name: 'Modern', value: "'Outfit', sans-serif" },
   { name: 'Mono', value: "'JetBrains Mono', monospace" },
   { name: 'Classic', value: "'Bebas Neue', cursive" },
+  { name: 'Chinese (SC)', value: "'Noto Sans SC', sans-serif" },
+  { name: 'Japanese', value: "'Noto Sans JP', sans-serif" },
+  { name: 'Korean', value: "'Noto Sans KR', sans-serif" },
 ];
+
+const LANGUAGES = [
+  { label: 'EN', value: 'en' },
+  { label: '简', value: 'zh' },
+  { label: '日', value: 'ja' },
+  { label: '韩', value: 'ko' }
+];
+
+const TRANSLATIONS: Record<string, any> = {
+  en: {
+    library: 'Library',
+    import: 'Import',
+    presets: 'Store Presets',
+    workspace: 'Workspace',
+    storefront: 'Storefront',
+    targeting: 'Targeting',
+    exportAll: 'Export All',
+    editing: 'Editing',
+    emptyTitle: 'SnapStage is Empty',
+    emptyDesc: 'Import screenshots to start building your panoramic store gallery.',
+    getStarted: 'Get Started',
+    properties: 'Properties',
+    syncText: 'Sync Text',
+    headlinePlaceholder: 'Enter headline copy...',
+    typeface: 'Typeface',
+    fill: 'Fill',
+    fontSize: 'Font Size',
+    textSpacing: 'Text Spacing',
+    backdrop: 'Backdrop',
+    texture: 'Texture',
+    unique: 'Unique',
+    panoramic: 'Panoramic',
+    uploadTexture: 'Upload Texture',
+    uploadGlobal: 'Upload Global Texture',
+    uploadLocal: 'Upload Local Texture',
+    resetShared: 'Reset to Shared',
+    deviceRendering: 'Device Rendering',
+    showChassis: 'Show Chassis',
+    compatibleFrame: 'Compatible Frame',
+    bezelThickness: 'Bezel Thickness',
+    downloadFrame: 'Download Frame',
+    stageWaiting: 'Stage is waiting.',
+    selectSnapshot: 'Select a snapshot.',
+    headlineContent: 'Headline Content',
+    environment: 'Environment',
+    aiMatch: 'AI Match',
+    aiNotConnected: 'Gemini AI is not connected. Add your API_KEY to unlock smart color matching.'
+  },
+  zh: {
+    library: '媒体库',
+    import: '导入',
+    presets: '尺寸预设',
+    workspace: '工作区',
+    storefront: '商店预览',
+    targeting: '当前目标',
+    exportAll: '全部导出',
+    editing: '正在编辑',
+    emptyTitle: 'SnapStage 是空的',
+    emptyDesc: '导入截图以开始构建您的全景商店画廊。',
+    getStarted: '开始使用',
+    properties: '属性',
+    syncText: '同步文字',
+    headlinePlaceholder: '输入标题内容...',
+    typeface: '字体',
+    fill: '颜色',
+    fontSize: '字号',
+    textSpacing: '文字间距',
+    backdrop: '底色',
+    texture: '纹理',
+    unique: '独立',
+    panoramic: '全景',
+    uploadTexture: '上传纹理',
+    uploadGlobal: '上传全局纹理',
+    uploadLocal: '上传局部纹理',
+    resetShared: '重置为共享',
+    deviceRendering: '设备渲染',
+    showChassis: '显示外壳',
+    compatibleFrame: '适配框架',
+    bezelThickness: '边框厚度',
+    downloadFrame: '下载单图',
+    stageWaiting: '等待中',
+    selectSnapshot: '请选择一张截图。',
+    headlineContent: '标题内容',
+    environment: '环境',
+    aiMatch: '智能配色',
+    aiNotConnected: 'Gemini AI 未连接。请添加 API_KEY 以解锁智能配色功能。'
+  },
+  ja: {
+    library: 'ライブラリ',
+    import: 'インポート',
+    presets: 'プリセット',
+    workspace: 'ワークスペース',
+    storefront: 'ストアフロント',
+    targeting: 'ターゲット',
+    exportAll: 'すべて書き出し',
+    editing: '編集内容',
+    emptyTitle: 'SnapStage は空です',
+    emptyDesc: 'スクリーンショットをインポートして、パノラマギャラリーの作成を開始します。',
+    getStarted: '使ってみる',
+    properties: 'プロパティ',
+    syncText: 'テキスト同期',
+    headlinePlaceholder: 'ヘッドラインを入力...',
+    typeface: '書体',
+    fill: '塗りつぶし',
+    fontSize: 'フォントサイズ',
+    textSpacing: 'テキスト間隔',
+    backdrop: '背景色',
+    texture: 'テクスチャ',
+    unique: 'ユニーク',
+    panoramic: 'パノラマ',
+    uploadTexture: 'テクスチャをアップロード',
+    uploadGlobal: 'グローバルテクスチャ',
+    uploadLocal: 'ローカルテクスチャ',
+    resetShared: '共有に戻す',
+    deviceRendering: 'デバイスレンダリング',
+    showChassis: 'シャーシ表示',
+    compatibleFrame: '互換フレーム',
+    bezelThickness: 'ベゼルの厚さ',
+    downloadFrame: 'フレームをダウンロード',
+    stageWaiting: '待機中',
+    selectSnapshot: 'スクリーンショットを選択してください。',
+    headlineContent: '見出し内容',
+    environment: '環境設定',
+    aiMatch: 'AI マッチ',
+    aiNotConnected: 'Gemini AI が接続されていません。API_KEY を追加してスマートカラーマッチングを有効にします。'
+  },
+  ko: {
+    library: '라이브러리',
+    import: '가져오기',
+    presets: '프리셋',
+    workspace: '작업공간',
+    storefront: '스토어프런트',
+    targeting: '타겟팅',
+    exportAll: '전체 내보내기',
+    editing: '편집 중',
+    emptyTitle: 'SnapStage가 비어 있습니다',
+    emptyDesc: '스크린샷을 가져와서 파노라마 스토어 갤러리 구축을 시작하세요.',
+    getStarted: '시작하기',
+    properties: '속성',
+    syncText: '텍스트 동기화',
+    headlinePlaceholder: '헤드라인 입력...',
+    typeface: '서체',
+    fill: '색상',
+    fontSize: '글꼴 크기',
+    textSpacing: '텍스트 간격',
+    backdrop: '배경',
+    texture: '텍스처',
+    unique: '개별',
+    panoramic: '파노라마',
+    uploadTexture: '텍스처 업로드',
+    uploadGlobal: '전역 텍스처 업로드',
+    uploadLocal: '개별 텍스처 업로드',
+    resetShared: '공유로 재설정',
+    deviceRendering: '기기 렌더링',
+    showChassis: '섀시 표시',
+    compatibleFrame: '호환 프레임',
+    bezelThickness: '베젤 두께',
+    downloadFrame: '프레임 다운로드',
+    stageWaiting: '대기 중',
+    selectSnapshot: '스냅샷을 선택하세요.',
+    headlineContent: '헤드라인 내용',
+    environment: '환경',
+    aiMatch: 'AI 매칭',
+    aiNotConnected: 'Gemini AI가 연결되지 않았습니다. API_KEY를 추가하여 스마트 색상 매칭을 활성화하세요.'
+  }
+};
 
 const DEFAULT_BEZEL_THICKNESS = 4.5;
 
 const App: React.FC = () => {
+  const [locale, setLocale] = useState('en');
+  const t = TRANSLATIONS[locale] || TRANSLATIONS.en;
+
   const [images, setImages] = useState<ImageState[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [targetDimension, setTargetDimension] = useState<Dimension>(STORE_PRESETS[0]);
@@ -23,15 +196,19 @@ const App: React.FC = () => {
   const [bezelThickness, setBezelThickness] = useState(DEFAULT_BEZEL_THICKNESS);
   const [isProcessing, setIsProcessing] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [panoramicBgUrl, setPanoramicBgUrl] = useState<string | null>(null);
   
   const [previewCache, setPreviewCache] = useState<Record<string, string>>({});
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const [textConfig, setTextConfig] = useState<TextConfig>({
     fontSize: 80,
     color: '#0f172a',
     fontWeight: '800',
     padding: 100,
-    fontFamily: "'Inter', sans-serif"
+    fontFamily: "'Inter', sans-serif",
+    spacing: 60, // Default gap between text and device
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +227,42 @@ const App: React.FC = () => {
     })));
   };
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === index) return;
+
+    const newImages = [...images];
+    const draggedItem = newImages[draggedIdx];
+    newImages.splice(draggedIdx, 1);
+    newImages.splice(index, 0, draggedItem);
+    
+    setDraggedIdx(index);
+    setImages(newImages);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+  };
+
+  // Scroll to selected effect
+  useEffect(() => {
+    if (selectedId) {
+      const el = itemRefs.current.get(selectedId);
+      if (el) {
+        el.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'center'
+        });
+      }
+    }
+  }, [selectedId, viewMode]);
+
   const drawRoundedRect = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) => {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -66,12 +279,16 @@ const App: React.FC = () => {
 
   const processSingleImage = useCallback(async (
     imgState: ImageState,
+    idx: number,
+    totalCount: number,
     dimension: Dimension, 
     fallbackBg: string,
     layout: LayoutMode,
     tConfig: TextConfig,
     deviceFrame: boolean,
-    bezelThick: number
+    bezelThick: number,
+    bgMode: 'single' | 'panoramic',
+    globalPanoramic: string | null
   ): Promise<string | null> => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -80,14 +297,60 @@ const App: React.FC = () => {
     canvas.width = dimension.width;
     canvas.height = dimension.height;
 
-    if (imgState.customBgUrl) {
+    // Background Rendering Logic
+    if (bgMode === 'panoramic' && globalPanoramic) {
       const bgImg = new Image();
-      bgImg.src = imgState.customBgUrl;
+      bgImg.src = globalPanoramic;
       await new Promise((r) => (bgImg.onload = r));
-      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+      
+      const totalTargetWidth = dimension.width * totalCount;
+      const bgAspect = bgImg.width / bgImg.height;
+      const totalAspect = totalTargetWidth / dimension.height;
+      
+      let sourceW, sourceH, sourceX, sourceY;
+      if (bgAspect > totalAspect) {
+        sourceH = bgImg.height;
+        sourceW = bgImg.height * totalAspect;
+        sourceY = 0;
+        sourceX = (bgImg.width - sourceW) / 2;
+      } else {
+        sourceW = bgImg.width;
+        sourceH = bgImg.width / totalAspect;
+        sourceX = 0;
+        sourceY = (bgImg.height - sourceH) / 2;
+      }
+      
+      const sliceSourceW = sourceW / totalCount;
+      const sliceSourceX = sourceX + (idx * sliceSourceW);
+      ctx.drawImage(bgImg, sliceSourceX, sourceY, sliceSourceW, sourceH, 0, 0, canvas.width, canvas.height);
     } else {
-      ctx.fillStyle = fallbackBg;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const activeTexture = imgState.customBgUrl || globalPanoramic;
+      
+      if (activeTexture) {
+        const bgImg = new Image();
+        bgImg.src = activeTexture;
+        await new Promise((r) => (bgImg.onload = r));
+        
+        const imgAspect = bgImg.width / bgImg.height;
+        const canvasAspect = canvas.width / canvas.height;
+        
+        let drawW, drawH, drawX, drawY;
+        if (imgAspect > canvasAspect) {
+          drawH = canvas.height;
+          drawW = canvas.height * imgAspect;
+          drawY = 0;
+          drawX = (canvas.width - drawW) / 2;
+        } else {
+          drawW = canvas.width;
+          drawH = canvas.width / imgAspect;
+          drawX = 0;
+          drawY = (canvas.height - drawH) / 2;
+        }
+        ctx.drawImage(bgImg, drawX, drawY, drawW, drawH);
+      } else {
+        ctx.fillStyle = fallbackBg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
     }
 
     const imgSource = new Image();
@@ -103,30 +366,40 @@ const App: React.FC = () => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
 
-      const words = imgState.title.split(' ');
-      let line = '';
-      let lines = [];
       const maxWidth = canvas.width - (tConfig.padding * 2);
       const lineHeight = tConfig.fontSize * 1.3;
+      
+      const manualLines = imgState.title.split('\n');
+      const finalLines: string[] = [];
 
-      for (let n = 0; n < words.length; n++) {
-        let testLine = line + words[n] + ' ';
-        let metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) {
-          lines.push(line);
-          line = words[n] + ' ';
-        } else {
-          line = testLine;
+      manualLines.forEach(manualLine => {
+        const words = manualLine.split(' ');
+        let currentLine = '';
+        
+        for (let n = 0; n < words.length; n++) {
+          let testLine = currentLine + (currentLine ? ' ' : '') + words[n];
+          let metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth && n > 0) {
+            finalLines.push(currentLine);
+            currentLine = words[n];
+          } else {
+            currentLine = testLine;
+          }
         }
-      }
-      lines.push(line);
-
-      lines.forEach((l, i) => {
-        ctx.fillText(l.trim(), canvas.width / 2, tConfig.padding + (i * lineHeight));
+        if (currentLine || manualLine === '') {
+          finalLines.push(currentLine);
+        }
       });
 
-      const totalTextHeight = lines.length * lineHeight;
-      imageAreaY = tConfig.padding + totalTextHeight + (tConfig.padding * 0.8);
+      finalLines.forEach((l, i) => {
+        if (l.trim()) {
+          ctx.fillText(l.trim(), canvas.width / 2, tConfig.padding + (i * lineHeight));
+        }
+      });
+
+      const totalTextHeight = finalLines.length * lineHeight;
+      // Added spacing property to shift the device down relative to the text
+      imageAreaY = tConfig.padding + totalTextHeight + tConfig.spacing;
       imageAreaHeight = canvas.height - imageAreaY;
     }
 
@@ -230,44 +503,21 @@ const App: React.FC = () => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
-      const bgImg = new Image();
-      bgImg.src = event.target?.result as string;
-      bgImg.onload = () => {
-        if (bgUploadMode === 'single' && selectedId) {
-          setImages(prev => prev.map(img => img.id === selectedId ? { ...img, customBgUrl: bgImg.src } : img));
-        } else if (bgUploadMode === 'panoramic' && images.length > 0) {
-          const count = images.length;
-          const totalTargetWidth = targetDimension.width * count;
-          const bgAspect = bgImg.width / bgImg.height;
-          const totalAspect = totalTargetWidth / targetDimension.height;
-          setImages(prev => prev.map((img, idx) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = targetDimension.width;
-            canvas.height = targetDimension.height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return img;
-            let sourceW, sourceH, sourceX, sourceY;
-            if (bgAspect > totalAspect) {
-              sourceH = bgImg.height;
-              sourceW = bgImg.height * totalAspect;
-              sourceY = 0;
-              sourceX = (bgImg.width - sourceW) / 2;
-            } else {
-              sourceW = bgImg.width;
-              sourceH = bgImg.width / totalAspect;
-              sourceX = 0;
-              sourceY = (bgImg.height - sourceH) / 2;
-            }
-            const sliceSourceW = sourceW / count;
-            const sliceSourceX = sourceX + (idx * sliceSourceW);
-            ctx.drawImage(bgImg, sliceSourceX, sourceY, sliceSourceW, sourceH, 0, 0, canvas.width, canvas.height);
-            return { ...img, customBgUrl: canvas.toDataURL('image/png') };
-          }));
-        }
-      };
+      const dataUrl = event.target?.result as string;
+      if (bgUploadMode === 'panoramic') {
+        setPanoramicBgUrl(dataUrl);
+      } else if (selectedId) {
+        setImages(prev => prev.map(img => img.id === selectedId ? { ...img, customBgUrl: dataUrl } : img));
+        if (!panoramicBgUrl) setPanoramicBgUrl(dataUrl);
+      }
     };
     reader.readAsDataURL(file);
     if (bgInputRef.current) bgInputRef.current.value = '';
+  };
+
+  const resetCustomBg = () => {
+    if (!selectedId) return;
+    setImages(prev => prev.map(img => img.id === selectedId ? { ...img, customBgUrl: null } : img));
   };
 
   const harmonizeTheme = async (imgState: ImageState) => {
@@ -291,15 +541,20 @@ const App: React.FC = () => {
       setIsProcessing(true);
       const newCache: Record<string, string> = {};
       
-      for (const imgState of images) {
+      for (let i = 0; i < images.length; i++) {
+        const imgState = images[i];
         const result = await processSingleImage(
-          imgState, 
+          imgState,
+          i,
+          images.length,
           targetDimension, 
           bgColor, 
           layoutMode, 
           textConfig, 
           showDeviceFrame, 
-          bezelThickness
+          bezelThickness,
+          bgUploadMode,
+          panoramicBgUrl
         );
         if (result) newCache[imgState.id] = result;
       }
@@ -310,7 +565,7 @@ const App: React.FC = () => {
 
     const timeoutId = setTimeout(updateAllImages, 150); 
     return () => clearTimeout(timeoutId);
-  }, [targetDimension, bgColor, layoutMode, textConfig, showDeviceFrame, bezelThickness, images, processSingleImage]);
+  }, [targetDimension, bgColor, layoutMode, textConfig, showDeviceFrame, bezelThickness, images, bgUploadMode, panoramicBgUrl, processSingleImage]);
 
   const updateImageTitle = (id: string, title: string) => {
     setImages(prev => prev.map(img => img.id === id ? { ...img, title } : img));
@@ -352,18 +607,22 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-8">
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Library</h2>
-              <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-indigo-600 uppercase hover:underline">Import</button>
+              <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.library}</h2>
+              <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-indigo-600 uppercase hover:underline">{t.import}</button>
             </div>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleFileUpload} />
             <div className="grid grid-cols-2 gap-2">
-              {images.map((img) => (
+              {images.map((img, idx) => (
                 <div 
                   key={img.id} 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
                   onClick={() => setSelectedId(img.id)} 
-                  className={`aspect-[9/16] rounded-lg cursor-pointer border-2 transition-all relative overflow-hidden ${selectedId === img.id ? 'border-indigo-500 shadow-md ring-2 ring-indigo-50' : 'border-slate-100 hover:border-slate-300'}`}
+                  className={`aspect-[9/16] rounded-lg cursor-grab active:cursor-grabbing border-2 transition-all relative overflow-hidden ${selectedId === img.id ? 'border-indigo-500 shadow-md ring-2 ring-indigo-50' : 'border-slate-100 hover:border-slate-300'} ${draggedIdx === idx ? 'opacity-40 scale-95' : 'opacity-100'}`}
                 >
-                  <img src={img.originalUrl} alt={img.name} className="w-full h-full object-cover" />
+                  <img src={img.originalUrl} alt={img.name} className="w-full h-full object-cover pointer-events-none" />
                 </div>
               ))}
               <button onClick={() => fileInputRef.current?.click()} className="aspect-[9/16] rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 hover:text-indigo-500 hover:border-indigo-500 transition-all">
@@ -373,7 +632,7 @@ const App: React.FC = () => {
           </section>
 
           <section>
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Store Presets</h2>
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">{t.presets}</h2>
             <div className="space-y-6">
               {(Object.entries(groupedPresets) as [string, Dimension[]][]).map(([category, presets]) => (
                 <div key={category} className="space-y-1.5">
@@ -401,28 +660,42 @@ const App: React.FC = () => {
         <header className="h-16 shrink-0 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-6 z-30">
           <div className="flex items-center gap-6">
              <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button onClick={() => setViewMode('grid')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>Workspace</button>
-                <button onClick={() => setViewMode('storefront')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${viewMode === 'storefront' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>Storefront</button>
+                <button onClick={() => setViewMode('grid')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>{t.workspace}</button>
+                <button onClick={() => setViewMode('storefront')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${viewMode === 'storefront' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>{t.storefront}</button>
              </div>
              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-               Targeting <span className="text-slate-900">{targetDimension.category}</span>
+               {t.targeting} <span className="text-slate-900">{targetDimension.category}</span>
              </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            {isProcessing && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-full">
-                <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-ping"></div>
-                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Rendering</span>
-              </div>
-            )}
-            <button 
-              onClick={() => images.forEach(img => handleDownload(img))} 
-              disabled={images.length === 0} 
-              className="px-5 py-2 bg-slate-900 hover:bg-black text-white text-[11px] font-black rounded-xl transition-all shadow-xl disabled:opacity-10 flex items-center gap-2 uppercase tracking-widest"
-            >
-              Export All
-            </button>
+          <div className="flex items-center gap-4">
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              {LANGUAGES.map(lang => (
+                <button 
+                  key={lang.value} 
+                  onClick={() => setLocale(lang.value)} 
+                  className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg transition-all ${locale === lang.value ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isProcessing && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-full">
+                  <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-ping"></div>
+                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Rendering</span>
+                </div>
+              )}
+              <button 
+                onClick={() => images.forEach(img => handleDownload(img))} 
+                disabled={images.length === 0} 
+                className="px-5 py-2 bg-slate-900 hover:bg-black text-white text-[11px] font-black rounded-xl transition-all shadow-xl disabled:opacity-10 flex items-center gap-2 uppercase tracking-widest"
+              >
+                {t.exportAll}
+              </button>
+            </div>
           </div>
         </header>
 
@@ -433,11 +706,16 @@ const App: React.FC = () => {
             <div className={`min-h-full flex items-center justify-center p-12 lg:p-24 ${viewMode === 'storefront' ? 'flex-row' : 'flex-wrap gap-20'}`}>
               {images.length > 0 ? (
                 <div className={`flex ${viewMode === 'storefront' ? 'flex-row items-center gap-4 px-12' : 'flex-wrap justify-center gap-20 w-full max-w-7xl'} animate-in`}>
-                  {images.map((img) => (
+                  {images.map((img, idx) => (
                     <div 
                       key={img.id}
+                      ref={(el) => { if (el) itemRefs.current.set(img.id, el); else itemRefs.current.delete(img.id); }}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragEnd={handleDragEnd}
                       onClick={() => setSelectedId(img.id)}
-                      className={`relative shrink-0 transition-all duration-500 ease-in-out cursor-pointer ${selectedId === img.id ? 'scale-100 z-10' : 'scale-[0.92] opacity-60 hover:opacity-100'}`}
+                      className={`relative shrink-0 transition-all duration-300 ease-in-out cursor-grab active:cursor-grabbing ${selectedId === img.id ? 'scale-100 z-10' : 'scale-[0.92] opacity-60 hover:opacity-100'} ${draggedIdx === idx ? 'opacity-20 scale-90 grayscale' : 'opacity-100'}`}
                     >
                       <div className={`shadow-[0_50px_100px_rgba(0,0,0,0.12)] rounded-[3rem] overflow-hidden border-[8px] transition-all bg-white ${selectedId === img.id ? 'border-indigo-600 ring-[20px] ring-indigo-500/5' : 'border-white'}`}>
                         {previewCache[img.id] ? (
@@ -449,7 +727,7 @@ const App: React.FC = () => {
                         )}
                       </div>
                       {selectedId === img.id && (
-                         <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-6 py-2 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl">Editing</div>
+                         <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-6 py-2 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl">{t.editing}</div>
                       )}
                     </div>
                   ))}
@@ -463,9 +741,9 @@ const App: React.FC = () => {
                         <path d="M17 7L17.01 7.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                     </svg>
                   </div>
-                  <h3 className="text-slate-900 font-black text-2xl mb-3 tracking-tight">SnapStage is Empty</h3>
-                  <p className="text-slate-400 text-xs font-medium mb-8 max-w-[240px]">Import screenshots to start building your panoramic store gallery.</p>
-                  <button onClick={() => fileInputRef.current?.click()} className="px-10 py-4 bg-indigo-600 text-white font-black text-[11px] rounded-2xl hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-100 uppercase tracking-widest">Get Started</button>
+                  <h3 className="text-slate-900 font-black text-2xl mb-3 tracking-tight">{t.emptyTitle}</h3>
+                  <p className="text-slate-400 text-xs font-medium mb-8 max-w-[240px]">{t.emptyDesc}</p>
+                  <button onClick={() => fileInputRef.current?.click()} className="px-10 py-4 bg-indigo-600 text-white font-black text-[11px] rounded-2xl hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-100 uppercase tracking-widest">{t.getStarted}</button>
                 </div>
               )}
             </div>
@@ -475,7 +753,7 @@ const App: React.FC = () => {
             {selectedImage ? (
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Properties</h3>
+                  <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">{t.properties}</h3>
                   <div className="flex items-center gap-2">
                     {hasApiKey ? (
                       <button 
@@ -483,7 +761,7 @@ const App: React.FC = () => {
                         className="group relative p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clipRule="evenodd" /></svg>
-                        <span className="absolute -left-20 -top-8 bg-slate-900 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">AI Match</span>
+                        <span className="absolute -left-20 -top-8 bg-slate-900 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{t.aiMatch}</span>
                       </button>
                     ) : (
                       <div className="group relative p-2.5 bg-slate-50 text-slate-300 rounded-xl cursor-help">
@@ -491,7 +769,7 @@ const App: React.FC = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                         <div className="absolute right-0 top-10 w-48 bg-white border border-slate-200 p-3 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-                          <p className="text-[9px] font-bold text-slate-900 leading-tight">Gemini AI is not connected. Add your API_KEY to unlock smart color matching.</p>
+                          <p className="text-[9px] font-bold text-slate-900 leading-tight">{t.aiNotConnected}</p>
                         </div>
                       </div>
                     )}
@@ -500,19 +778,19 @@ const App: React.FC = () => {
 
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Headline Content</label>
-                    <button onClick={applyToAll} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">Sync Text</button>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.headlineContent}</label>
+                    <button onClick={applyToAll} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">{t.syncText}</button>
                   </div>
                   <textarea
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none resize-none h-28 transition-all shadow-inner"
                     value={selectedImage.title}
                     onChange={(e) => updateImageTitle(selectedId!, e.target.value)}
-                    placeholder="Enter headline copy..."
+                    placeholder={t.headlinePlaceholder}
                   />
                   
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Typeface</label>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t.typeface}</label>
                       <select 
                         value={textConfig.fontFamily} 
                         onChange={(e) => setTextConfig(prev => ({ ...prev, fontFamily: e.target.value }))}
@@ -522,7 +800,7 @@ const App: React.FC = () => {
                       </select>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Fill</label>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t.fill}</label>
                       <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
                         <input type="color" value={textConfig.color} onChange={(e) => setTextConfig(prev => ({ ...prev, color: e.target.value }))} className="w-7 h-7 rounded-lg border-0 p-0 cursor-pointer shadow-sm overflow-hidden" />
                         <span className="text-[10px] font-mono font-bold text-slate-400">{textConfig.color.toUpperCase()}</span>
@@ -530,20 +808,30 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-2">
-                    <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase">
-                      <span>Font Size</span>
-                      <span className="text-indigo-600">{textConfig.fontSize}pt</span>
+                  <div className="space-y-6 pt-2">
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase">
+                        <span>{t.fontSize}</span>
+                        <span className="text-indigo-600">{textConfig.fontSize}pt</span>
+                      </div>
+                      <input type="range" min="40" max="280" value={textConfig.fontSize} onChange={(e) => setTextConfig(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-indigo-600" />
                     </div>
-                    <input type="range" min="40" max="280" value={textConfig.fontSize} onChange={(e) => setTextConfig(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-indigo-600" />
+
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase">
+                        <span>{t.textSpacing}</span>
+                        <span className="text-indigo-600">{textConfig.spacing}px</span>
+                      </div>
+                      <input type="range" min="0" max="400" value={textConfig.spacing} onChange={(e) => setTextConfig(prev => ({ ...prev, spacing: parseInt(e.target.value) }))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-indigo-600" />
+                    </div>
                   </div>
                 </section>
 
                 <section className="space-y-4 pt-8 border-t border-slate-100">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Environment</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">{t.environment}</label>
                   <div className="space-y-5">
                     <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                      <span className="text-[11px] font-bold text-slate-600 uppercase">Backdrop</span>
+                      <span className="text-[11px] font-bold text-slate-600 uppercase">{t.backdrop}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-mono text-slate-400">{bgColor.toUpperCase()}</span>
                         <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-7 h-7 rounded-lg border-0 p-0 cursor-pointer shadow-sm overflow-hidden" />
@@ -551,23 +839,30 @@ const App: React.FC = () => {
                     </div>
                     
                     <div className="space-y-3">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Texture</label>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t.texture}</label>
                       <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-                        <button onClick={() => setBgUploadMode('single')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'single' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>Unique</button>
-                        <button onClick={() => setBgUploadMode('panoramic')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'panoramic' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>Panoramic</button>
+                        <button onClick={() => setBgUploadMode('single')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'single' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.unique}</button>
+                        <button onClick={() => setBgUploadMode('panoramic')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'panoramic' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.panoramic}</button>
                       </div>
-                      <button onClick={() => bgInputRef.current?.click()} className="w-full py-3 bg-white border border-slate-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm">Upload Texture</button>
-                      <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} />
+                      <div className="space-y-2">
+                        <button onClick={() => bgInputRef.current?.click()} className="w-full py-3 bg-white border border-slate-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm">
+                          {bgUploadMode === 'panoramic' ? t.uploadGlobal : t.uploadLocal}
+                        </button>
+                        {bgUploadMode === 'single' && selectedImage?.customBgUrl && (
+                          <button onClick={resetCustomBg} className="w-full py-1.5 text-[9px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">{t.resetShared}</button>
+                        )}
+                        <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} />
+                      </div>
                     </div>
                   </div>
                 </section>
 
                 <section className="space-y-4 pt-8 border-t border-slate-100">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Device Rendering</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">{t.deviceRendering}</label>
                   <div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 mb-2">
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-black text-indigo-950 uppercase tracking-tight">Show Chassis</span>
-                      <span className="text-[9px] text-indigo-400 font-bold uppercase mt-0.5">Compatible Frame</span>
+                      <span className="text-[11px] font-black text-indigo-950 uppercase tracking-tight">{t.showChassis}</span>
+                      <span className="text-[9px] text-indigo-400 font-bold uppercase mt-0.5">{t.compatibleFrame}</span>
                     </div>
                     <button onClick={() => setShowDeviceFrame(!showDeviceFrame)} className={`w-12 h-6 rounded-full relative transition-all duration-300 shadow-inner ${showDeviceFrame ? 'bg-indigo-600' : 'bg-slate-300'}`}>
                       <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-md ${showDeviceFrame ? 'left-7' : 'left-1'}`}></div>
@@ -578,7 +873,7 @@ const App: React.FC = () => {
                     <div className="space-y-3 pt-2">
                       <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase">
                         <div className="flex items-center gap-2">
-                          <span>Bezel Thickness</span>
+                          <span>{t.bezelThickness}</span>
                           <button 
                             onClick={() => setBezelThickness(DEFAULT_BEZEL_THICKNESS)}
                             className="text-indigo-600 hover:text-indigo-800 transition-colors p-0.5 hover:bg-indigo-50 rounded"
@@ -607,7 +902,7 @@ const App: React.FC = () => {
                 <div className="pt-10">
                   <button onClick={() => handleDownload(selectedImage)} className="w-full py-4 bg-slate-900 text-white font-black text-[11px] rounded-[1.5rem] hover:bg-black transition-all shadow-2xl uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Download Frame
+                    {t.downloadFrame}
                   </button>
                 </div>
               </div>
@@ -617,7 +912,7 @@ const App: React.FC = () => {
                     <path d="M7 3C4.79086 3 3 4.79086 3 7V17C3 19.2091 4.79086 21 7 21H17C19.2091 21 21 19.2091 21 17V7C21 4.79086 19.2091 3 17 3H7Z" stroke="currentColor" strokeWidth="1" />
                     <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1" />
                 </svg>
-                <p className="text-[11px] font-bold uppercase tracking-widest leading-relaxed">Stage is waiting.<br/>Select a snapshot.</p>
+                <p className="text-[11px] font-bold uppercase tracking-widest leading-relaxed">{t.stageWaiting}<br/>{t.selectSnapshot}</p>
               </div>
             )}
           </aside>

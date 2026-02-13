@@ -1,3 +1,4 @@
+
 export interface Dimension {
   width: number;
   height: number;
@@ -39,6 +40,7 @@ export interface TextConfig {
   fontWeight: string;
   padding: number;
   fontFamily: string;
+  spacing: number; // Vertical spacing between text and device
 }
 
 export interface ImageState {
