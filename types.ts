@@ -3,32 +3,33 @@ export interface Dimension {
   width: number;
   height: number;
   label: string;
-  category: 'iPhone' | 'iPad' | 'Watch' | 'Android Phone' | 'Android Tablet';
+  category: 'iPhone' | 'iPad' | 'Watch' | 'Android';
 }
 
 export const STORE_PRESETS: Dimension[] = [
-  // iPhone
-  { width: 1290, height: 2796, label: "6.7\" (14/15/16 Pro Max) - Port", category: 'iPhone' },
-  { width: 1284, height: 2778, label: "6.7\" (12/13 Pro Max) - Port", category: 'iPhone' },
-  { width: 1242, height: 2688, label: "6.5\" (XS Max/11 Pro Max) - Port", category: 'iPhone' },
-  { width: 1242, height: 2208, label: "5.5\" (6s/7/8 Plus) - Port", category: 'iPhone' },
-  
-  // Android
-  { width: 1080, height: 1920, label: "Phone (1080p) - Port", category: 'Android Phone' },
-  { width: 1440, height: 2560, label: "Phone (QHD) - Port", category: 'Android Phone' },
-  { width: 1920, height: 1080, label: "Phone (1080p) - Land", category: 'Android Phone' },
+  // iPhone Portrait - Prioritized by most common submission requirements
+  { width: 1284, height: 2778, label: "1284 × 2778 px (6.7\" Display)", category: 'iPhone' },
+  { width: 1242, height: 2688, label: "1242 × 2688 px (6.5\" Display)", category: 'iPhone' },
+  { width: 1290, height: 2796, label: "1290 × 2796 px (6.7\" iPhone 15/14)", category: 'iPhone' },
+  { width: 1320, height: 2868, label: "1320 × 2868 px (6.9\" iPhone 16)", category: 'iPhone' },
+  { width: 1242, height: 2208, label: "1242 × 2208 px (5.5\" Display)", category: 'iPhone' },
+
+  // iPhone Landscape
+  { width: 2778, height: 1284, label: "2778 × 1284 px (6.7\" Landscape)", category: 'iPhone' },
+  { width: 2688, height: 1242, label: "2688 × 1242 px (6.5\" Landscape)", category: 'iPhone' },
+  { width: 2796, height: 1290, label: "2796 × 1290 px (6.7\" Landscape)", category: 'iPhone' },
+  { width: 2208, height: 1242, label: "2208 × 1242 px (5.5\" Landscape)", category: 'iPhone' },
 
   // iPad
-  { width: 2048, height: 2732, label: "iPad Pro 12.9\" - Port", category: 'iPad' },
-  { width: 1668, height: 2388, label: "iPad Pro 11\" - Port", category: 'iPad' },
+  { width: 2048, height: 2732, label: "2048 × 2732 px (iPad Pro 12.9\")", category: 'iPad' },
+  { width: 2732, height: 2048, label: "2732 × 2048 px (iPad Landscape)", category: 'iPad' },
 
-  // Android Tablet
-  { width: 1200, height: 1920, label: "7-inch Tablet - Port", category: 'Android Tablet' },
-  { width: 2048, height: 1536, label: "10-inch Tablet - Port", category: 'Android Tablet' },
+  // Android
+  { width: 1080, height: 1920, label: "1080 × 1920 px (Android Phone)", category: 'Android' },
+  { width: 1440, height: 2560, label: "1440 × 2560 px (Android QHD)", category: 'Android' },
 
   // Watch
-  { width: 410, height: 502, label: "Watch Ultra (49mm)", category: 'Watch' },
-  { width: 396, height: 484, label: "Watch Series 7-9 (45mm)", category: 'Watch' }
+  { width: 410, height: 502, label: "410 × 502 px (Watch Ultra)", category: 'Watch' }
 ];
 
 export type ResizeMode = 'contain' | 'cover' | 'stretch';
@@ -40,7 +41,7 @@ export interface TextConfig {
   fontWeight: string;
   padding: number;
   fontFamily: string;
-  spacing: number; // Vertical spacing between text and device
+  spacing: number;
 }
 
 export interface ImageState {
