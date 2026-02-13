@@ -58,7 +58,9 @@ const TRANSLATIONS: Record<string, any> = {
     headlineContent: 'Headline Content',
     environment: 'Environment',
     aiMatch: 'AI Match',
-    aiNotConnected: 'Gemini AI is not connected. Add your API_KEY to unlock smart color matching.'
+    aiNotConnected: 'Gemini AI is not connected. Add your API_KEY to unlock smart color matching.',
+    solid: 'Solid',
+    image: 'Image'
   },
   zh: {
     library: '媒体库',
@@ -97,7 +99,9 @@ const TRANSLATIONS: Record<string, any> = {
     headlineContent: '标题内容',
     environment: '环境',
     aiMatch: '智能配色',
-    aiNotConnected: 'Gemini AI 未连接。请添加 API_KEY 以解锁智能配色功能。'
+    aiNotConnected: 'Gemini AI 未连接。请添加 API_KEY 以解锁智能配色功能。',
+    solid: '纯色',
+    image: '图片'
   },
   ja: {
     library: 'ライブラリ',
@@ -136,7 +140,9 @@ const TRANSLATIONS: Record<string, any> = {
     headlineContent: '見出し内容',
     environment: '環境設定',
     aiMatch: 'AI マッチ',
-    aiNotConnected: 'Gemini AI が接続されていません。API_KEY を追加してスマートカラーマッチングを有効にします。'
+    aiNotConnected: 'Gemini AI が接続されていません。API_KEY を追加してスマートカラーマッチングを有効にします。',
+    solid: 'ソリッド',
+    image: 'イメージ'
   },
   ko: {
     library: '라이브러리',
@@ -175,7 +181,9 @@ const TRANSLATIONS: Record<string, any> = {
     headlineContent: '헤드라인 내용',
     environment: '환경',
     aiMatch: 'AI 매칭',
-    aiNotConnected: 'Gemini AI가 연결되지 않았습니다. API_KEY를 추가하여 스마트 색상 매칭을 활성화하세요.'
+    aiNotConnected: 'Gemini AI가 연결되지 않았습니다. API_KEY를 추가하여 스마트 색상 매칭을 활성화하세요.',
+    solid: '단색',
+    image: '이미지'
   }
 };
 
@@ -191,6 +199,7 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'storefront'>('storefront');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('marketing');
   const [bgColor, setBgColor] = useState('#ffffff');
+  const [bgSource, setBgSource] = useState<'solid' | 'image'>('solid');
   const [showDeviceFrame, setShowDeviceFrame] = useState(true);
   const [bezelThickness, setBezelThickness] = useState(DEFAULT_BEZEL_THICKNESS);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -207,7 +216,7 @@ const App: React.FC = () => {
     fontWeight: '800',
     padding: 100,
     fontFamily: "'Inter', sans-serif",
-    spacing: 60, // Default gap between text and device
+    spacing: 60,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -257,7 +266,6 @@ const App: React.FC = () => {
       }
       return filtered;
     });
-    // Remove from cache as well
     setPreviewCache(prev => {
       const newCache = { ...prev };
       delete newCache[id];
@@ -265,7 +273,6 @@ const App: React.FC = () => {
     });
   };
 
-  // Scroll to selected effect
   useEffect(() => {
     if (selectedId) {
       const el = itemRefs.current.get(selectedId);
@@ -299,6 +306,7 @@ const App: React.FC = () => {
     totalCount: number,
     dimension: Dimension, 
     fallbackBg: string,
+    sourceBg: 'solid' | 'image',
     layout: LayoutMode,
     tConfig: TextConfig,
     deviceFrame: boolean,
@@ -314,59 +322,64 @@ const App: React.FC = () => {
     canvas.height = dimension.height;
 
     // Background Rendering Logic
-    if (bgMode === 'panoramic' && globalPanoramic) {
-      const bgImg = new Image();
-      bgImg.src = globalPanoramic;
-      await new Promise((r) => (bgImg.onload = r));
-      
-      const totalTargetWidth = dimension.width * totalCount;
-      const bgAspect = bgImg.width / bgImg.height;
-      const totalAspect = totalTargetWidth / dimension.height;
-      
-      let sourceW, sourceH, sourceX, sourceY;
-      if (bgAspect > totalAspect) {
-        sourceH = bgImg.height;
-        sourceW = bgImg.height * totalAspect;
-        sourceY = 0;
-        sourceX = (bgImg.width - sourceW) / 2;
-      } else {
-        sourceW = bgImg.width;
-        sourceH = bgImg.width / totalAspect;
-        sourceX = 0;
-        sourceY = (bgImg.height - sourceH) / 2;
-      }
-      
-      const sliceSourceW = sourceW / totalCount;
-      const sliceSourceX = sourceX + (idx * sliceSourceW);
-      ctx.drawImage(bgImg, sliceSourceX, sourceY, sliceSourceW, sourceH, 0, 0, canvas.width, canvas.height);
-    } else {
-      const activeTexture = imgState.customBgUrl || globalPanoramic;
-      
-      if (activeTexture) {
+    if (sourceBg === 'image') {
+      if (bgMode === 'panoramic' && globalPanoramic) {
         const bgImg = new Image();
-        bgImg.src = activeTexture;
+        bgImg.src = globalPanoramic;
         await new Promise((r) => (bgImg.onload = r));
         
-        const imgAspect = bgImg.width / bgImg.height;
-        const canvasAspect = canvas.width / canvas.height;
+        const totalTargetWidth = dimension.width * totalCount;
+        const bgAspect = bgImg.width / bgImg.height;
+        const totalAspect = totalTargetWidth / dimension.height;
         
-        let drawW, drawH, drawX, drawY;
-        if (imgAspect > canvasAspect) {
-          drawH = canvas.height;
-          drawW = canvas.height * imgAspect;
-          drawY = 0;
-          drawX = (canvas.width - drawW) / 2;
+        let sourceW, sourceH, sourceX, sourceY;
+        if (bgAspect > totalAspect) {
+          sourceH = bgImg.height;
+          sourceW = bgImg.height * totalAspect;
+          sourceY = 0;
+          sourceX = (bgImg.width - sourceW) / 2;
         } else {
-          drawW = canvas.width;
-          drawH = canvas.width / imgAspect;
-          drawX = 0;
-          drawY = (canvas.height - drawH) / 2;
+          sourceW = bgImg.width;
+          sourceH = bgImg.width / totalAspect;
+          sourceX = 0;
+          sourceY = (bgImg.height - sourceH) / 2;
         }
-        ctx.drawImage(bgImg, drawX, drawY, drawW, drawH);
+        
+        const sliceSourceW = sourceW / totalCount;
+        const sliceSourceX = sourceX + (idx * sliceSourceW);
+        ctx.drawImage(bgImg, sliceSourceX, sourceY, sliceSourceW, sourceH, 0, 0, canvas.width, canvas.height);
       } else {
-        ctx.fillStyle = fallbackBg;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const activeTexture = imgState.customBgUrl || globalPanoramic;
+        
+        if (activeTexture) {
+          const bgImg = new Image();
+          bgImg.src = activeTexture;
+          await new Promise((r) => (bgImg.onload = r));
+          
+          const imgAspect = bgImg.width / bgImg.height;
+          const canvasAspect = canvas.width / canvas.height;
+          
+          let drawW, drawH, drawX, drawY;
+          if (imgAspect > canvasAspect) {
+            drawH = canvas.height;
+            drawW = canvas.height * imgAspect;
+            drawY = 0;
+            drawX = (canvas.width - drawW) / 2;
+          } else {
+            drawW = canvas.width;
+            drawH = canvas.width / imgAspect;
+            drawX = 0;
+            drawY = (canvas.height - drawH) / 2;
+          }
+          ctx.drawImage(bgImg, drawX, drawY, drawW, drawH);
+        } else {
+          ctx.fillStyle = fallbackBg;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
       }
+    } else {
+      ctx.fillStyle = fallbackBg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     const imgSource = new Image();
@@ -541,6 +554,7 @@ const App: React.FC = () => {
     try {
       const suggestions = await analyzeScreenshotColors(base64);
       setBgColor(suggestions.backgroundColor);
+      setBgSource('solid'); // Default to solid on AI match
       setTextConfig(prev => ({ ...prev, color: suggestions.accentColor }));
     } catch (err) {
       console.error(err);
@@ -564,6 +578,7 @@ const App: React.FC = () => {
           images.length,
           targetDimension, 
           bgColor, 
+          bgSource,
           layoutMode, 
           textConfig, 
           showDeviceFrame, 
@@ -580,7 +595,7 @@ const App: React.FC = () => {
 
     const timeoutId = setTimeout(updateAllImages, 150); 
     return () => clearTimeout(timeoutId);
-  }, [targetDimension, bgColor, layoutMode, textConfig, showDeviceFrame, bezelThickness, images, bgUploadMode, panoramicBgUrl, processSingleImage]);
+  }, [targetDimension, bgColor, bgSource, layoutMode, textConfig, showDeviceFrame, bezelThickness, images, bgUploadMode, panoramicBgUrl, processSingleImage]);
 
   const updateImageTitle = (id: string, title: string) => {
     setImages(prev => prev.map(img => img.id === id ? { ...img, title } : img));
@@ -851,32 +866,40 @@ const App: React.FC = () => {
                 </section>
 
                 <section className="space-y-4 pt-8 border-t border-slate-100">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">{t.environment}</label>
-                  <div className="space-y-5">
-                    <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                      <span className="text-[11px] font-bold text-slate-600 uppercase">{t.backdrop}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono text-slate-400">{bgColor.toUpperCase()}</span>
-                        <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-7 h-7 rounded-lg border-0 p-0 cursor-pointer shadow-sm overflow-hidden" />
-                      </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">{t.environment}</label>
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button onClick={() => setBgSource('solid')} className={`px-2.5 py-1 text-[8px] font-black rounded-md uppercase transition-all ${bgSource === 'solid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>{t.solid}</button>
+                      <button onClick={() => setBgSource('image')} className={`px-2.5 py-1 text-[8px] font-black rounded-md uppercase transition-all ${bgSource === 'image' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>{t.image}</button>
                     </div>
-                    
-                    <div className="space-y-3">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t.texture}</label>
-                      <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-                        <button onClick={() => setBgUploadMode('single')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'single' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.unique}</button>
-                        <button onClick={() => setBgUploadMode('panoramic')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'panoramic' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.panoramic}</button>
+                  </div>
+
+                  <div className="space-y-5 animate-in">
+                    {bgSource === 'solid' ? (
+                      <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                        <span className="text-[11px] font-bold text-slate-600 uppercase">{t.backdrop}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-slate-400">{bgColor.toUpperCase()}</span>
+                          <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-7 h-7 rounded-lg border-0 p-0 cursor-pointer shadow-sm overflow-hidden" />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <button onClick={() => bgInputRef.current?.click()} className="w-full py-3 bg-white border border-slate-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm">
-                          {bgUploadMode === 'panoramic' ? t.uploadGlobal : t.uploadLocal}
-                        </button>
-                        {bgUploadMode === 'single' && selectedImage?.customBgUrl && (
-                          <button onClick={resetCustomBg} className="w-full py-1.5 text-[9px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">{t.resetShared}</button>
-                        )}
-                        <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} />
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                          <button onClick={() => setBgUploadMode('single')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'single' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.unique}</button>
+                          <button onClick={() => setBgUploadMode('panoramic')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'panoramic' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.panoramic}</button>
+                        </div>
+                        <div className="space-y-2">
+                          <button onClick={() => bgInputRef.current?.click()} className="w-full py-3 bg-white border border-slate-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm">
+                            {bgUploadMode === 'panoramic' ? t.uploadGlobal : t.uploadLocal}
+                          </button>
+                          {bgUploadMode === 'single' && selectedImage?.customBgUrl && (
+                            <button onClick={resetCustomBg} className="w-full py-1.5 text-[9px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">{t.resetShared}</button>
+                          )}
+                          <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </section>
 
