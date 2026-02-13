@@ -2,16 +2,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 export async function analyzeScreenshotColors(base64Image: string): Promise<{ backgroundColor: string, accentColor: string }> {
-  // Check if API Key is configured safely (handling browser environments where process might be undefined)
-  const apiKey = (typeof process !== "undefined" && process.env) ? process.env.API_KEY : undefined;
+  // Use API key directly from process.env as per guidelines
+  const apiKey = process.env.API_KEY;
 
-  // If no API key is present, return defaults immediately without initializing the SDK
   if (!apiKey) {
-    return { backgroundColor: "#ffffff", accentColor: "#007AFF" };
+    return { backgroundColor: "#f9fafb", accentColor: "#1d1d1f" };
   }
 
   try {
-    // Initialize SDK only when key is present and needed
+    // Initialize GoogleGenAI with the API key from process.env
     const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
@@ -19,7 +18,7 @@ export async function analyzeScreenshotColors(base64Image: string): Promise<{ ba
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/png' } },
-          { text: "Analyze this app screenshot and suggest the most appropriate background color and accent color in HEX format to use for framing this screenshot in an App Store preview. Return only the JSON object." }
+          { text: "Act as a senior UI/UX designer. Analyze this app screenshot. Suggest a background HEX color for a marketing frame that complements the screenshot's color palette (often a lighter or darker version of the app's primary brand color). Also, suggest a high-contrast HEX color for text that is accessible and stylish against that background. Return valid JSON only." }
         ]
       },
       config: {
@@ -27,20 +26,20 @@ export async function analyzeScreenshotColors(base64Image: string): Promise<{ ba
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            backgroundColor: { type: Type.STRING },
-            accentColor: { type: Type.STRING }
+            backgroundColor: { type: Type.STRING, description: "The HEX code for the canvas background." },
+            accentColor: { type: Type.STRING, description: "The HEX code for the headline text." }
           },
           required: ["backgroundColor", "accentColor"]
         }
       }
     });
 
+    // Access the .text property directly (not a method)
     const text = response.text;
     if (!text) throw new Error("AI returned empty response");
     return JSON.parse(text.trim());
   } catch (error) {
     console.error("Gemini Analysis failed:", error);
-    // Fallback to defaults on any error
-    return { backgroundColor: "#ffffff", accentColor: "#007AFF" };
+    return { backgroundColor: "#f9fafb", accentColor: "#1d1d1f" };
   }
 }

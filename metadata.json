@@ -1,5 +1,5 @@
 {
-  "name": "AppStore Studio",
-  "description": "Professional tool to resize and adjust mobile screenshots to meet Apple App Store Connect's strict dimension requirements (1242x2688, 1284x2778, etc.).",
+  "name": "SnapStage",
+  "description": "Transform raw mobile screenshots into stunning, store-ready marketing assets. Automate resizing for iOS and Android, generate panoramic backgrounds, and use AI-powered color harmonization for professional results.",
   "requestFramePermissions": []
 }
