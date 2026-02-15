@@ -1,4 +1,6 @@
+
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import JSZip from 'jszip';
 import { STORE_PRESETS, Dimension, ImageState, LayoutMode, TextConfig } from './types';
 import { analyzeScreenshotColors } from './services/geminiService';
 
@@ -29,6 +31,8 @@ const TRANSLATIONS: Record<string, any> = {
     storefront: 'Storefront',
     targeting: 'Targeting Output:',
     exportAll: 'Export All',
+    generating: 'Generating ZIP',
+    rendering: 'Rendering',
     editing: 'Editing',
     emptyTitle: 'SnapStage is Empty',
     emptyDesc: 'Import screenshots to start building your panoramic store gallery.',
@@ -70,6 +74,8 @@ const TRANSLATIONS: Record<string, any> = {
     storefront: '商店预览',
     targeting: '目标输出:',
     exportAll: '全部导出',
+    generating: '正在打包 ZIP',
+    rendering: '正在渲染',
     editing: '正在编辑',
     emptyTitle: 'SnapStage 是空的',
     emptyDesc: '导入截图以开始构建您的全景商店画廊。',
@@ -121,6 +127,7 @@ const App: React.FC = () => {
   const [showDeviceFrame, setShowDeviceFrame] = useState(true);
   const [bezelThickness, setBezelThickness] = useState(DEFAULT_BEZEL_THICKNESS);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [panoramicBgUrl, setPanoramicBgUrl] = useState<string | null>(null);
@@ -465,9 +472,44 @@ const App: React.FC = () => {
     const url = previewCache[img.id];
     if (!url) return;
     const link = document.createElement('a');
-    link.download = `snapstage-${targetDimension.width}x${targetDimension.height}-${img.name}`;
+    link.download = `snapstage-${targetDimension.width}x${targetDimension.height}-${img.name.replace(/\.[^/.]+$/, "")}.png`;
     link.href = url;
     link.click();
+  };
+
+  const handleExportAll = async () => {
+    if (images.length === 0) return;
+    setIsExporting(true);
+
+    try {
+      if (images.length === 1) {
+        handleDownload(images[0]);
+      } else {
+        const zip = new JSZip();
+        // Fix for Error in file App.tsx on line 399: Property 'name' does not exist on type 'unknown'.
+        // Explicitly type 'img' as ImageState to fix the inference issue.
+        images.forEach((img: ImageState, idx: number) => {
+          const url = previewCache[img.id];
+          if (url) {
+            const base64Data = url.split(',')[1];
+            const fileName = `${idx + 1}-${img.name.replace(/\.[^/.]+$/, "")}.png`;
+            zip.file(fileName, base64Data, { base64: true });
+          }
+        });
+
+        // Fix for Error in file App.tsx on line 409: Argument of type 'unknown' is not assignable to parameter of type 'Blob'.
+        // Added 'as Blob' type assertion to zip.generateAsync output.
+        const content = (await zip.generateAsync({ type: 'blob' })) as Blob;
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = `SnapStage-Export-${targetDimension.width}x${targetDimension.height}.zip`;
+        link.click();
+      }
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const groupedPresets = useMemo<Record<string, Dimension[]>>(() => {
@@ -569,8 +611,20 @@ const App: React.FC = () => {
               ))}
             </div>
             <div className="flex items-center gap-3">
-              {isProcessing && <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-full animate-pulse"><span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Rendering</span></div>}
-              <button onClick={() => images.forEach(img => handleDownload(img))} disabled={images.length === 0} className="px-5 py-2 bg-slate-900 hover:bg-black text-white text-[11px] font-black rounded-xl transition-all shadow-xl disabled:opacity-10 uppercase tracking-widest">{t.exportAll}</button>
+              {(isProcessing || isExporting) && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-full animate-pulse">
+                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                    {isExporting ? t.generating : t.rendering}
+                  </span>
+                </div>
+              )}
+              <button 
+                onClick={handleExportAll} 
+                disabled={images.length === 0 || isExporting} 
+                className="px-5 py-2 bg-slate-900 hover:bg-black text-white text-[11px] font-black rounded-xl transition-all shadow-xl disabled:opacity-50 uppercase tracking-widest"
+              >
+                {t.exportAll}
+              </button>
             </div>
           </div>
         </header>
