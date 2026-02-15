@@ -111,7 +111,7 @@ const TRANSLATIONS: Record<string, any> = {
   }
 };
 
-const DEFAULT_BEZEL_THICKNESS = 4.5;
+const DEFAULT_BEZEL_THICKNESS = 2.0;
 
 const App: React.FC = () => {
   const [locale, setLocale] = useState('en');
@@ -477,33 +477,37 @@ const App: React.FC = () => {
     link.click();
   };
 
+  // Fixed handleExportAll to address 'unknown' type issues with ZIP generation and image handling
   const handleExportAll = async () => {
     if (images.length === 0) return;
     setIsExporting(true);
 
     try {
       if (images.length === 1) {
-        handleDownload(images[0]);
+        // Explicitly cast to ImageState to resolve 'unknown' type issues
+        const firstImg = images[0] as ImageState;
+        handleDownload(firstImg);
       } else {
         const zip = new JSZip();
-        // Fix for Error in file App.tsx on line 399: Property 'name' does not exist on type 'unknown'.
-        // Explicitly type 'img' as ImageState to fix the inference issue.
+        // Explicitly type the iterator variable to avoid inference issues
         images.forEach((img: ImageState, idx: number) => {
           const url = previewCache[img.id];
           if (url) {
             const base64Data = url.split(',')[1];
+            // Accessing the name property of a typed object correctly
             const fileName = `${idx + 1}-${img.name.replace(/\.[^/.]+$/, "")}.png`;
             zip.file(fileName, base64Data, { base64: true });
           }
         });
 
-        // Fix for Error in file App.tsx on line 409: Argument of type 'unknown' is not assignable to parameter of type 'Blob'.
-        // Added 'as Blob' type assertion to zip.generateAsync output.
-        const content = (await zip.generateAsync({ type: 'blob' })) as Blob;
+        // zip.generateAsync may return any or unknown, cast it to ensure compatibility with createObjectURL
+        const content = await zip.generateAsync({ type: 'blob' });
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(content);
+        // Ensure the generated content is treated as a Blob for URL.createObjectURL
+        link.href = URL.createObjectURL(content as Blob);
         link.download = `SnapStage-Export-${targetDimension.width}x${targetDimension.height}.zip`;
         link.click();
+        URL.revokeObjectURL(link.href);
       }
     } catch (err) {
       console.error("Export failed:", err);
@@ -521,6 +525,11 @@ const App: React.FC = () => {
   }, []);
 
   const hasApiKey = !!(typeof process !== "undefined" && process.env.API_KEY);
+
+  // Helper to ensure hex code starts with #
+  const formatHex = (val: string) => val.startsWith('#') ? val : `#${val}`;
+  // Basic validation to prevent crashing on invalid typed hex codes
+  const isValidHex = (val: string) => /^#([A-Fa-f0-9]{3}){1,2}$/.test(val);
 
   return (
     <div className="h-screen w-screen bg-slate-50 flex overflow-hidden font-inter select-none">
@@ -548,7 +557,6 @@ const App: React.FC = () => {
                 <div key={img.id} draggable onDragStart={(e) => handleDragStart(e, idx)} onDragOver={(e) => handleDragOver(e, idx)} onDragEnd={handleDragEnd} onClick={() => setSelectedId(img.id)} className={`aspect-[9/16] rounded-lg cursor-grab active:cursor-grabbing border-2 transition-all relative group overflow-hidden ${selectedId === img.id ? 'border-indigo-500 shadow-md ring-2 ring-indigo-50' : 'border-slate-100 hover:border-slate-300'} ${draggedIdx === idx ? 'opacity-40 scale-95' : 'opacity-100'}`}>
                   <img src={img.originalUrl} alt={img.name} className="w-full h-full object-cover pointer-events-none" />
                   
-                  {/* Source Dimension Badge */}
                   <div className="absolute bottom-1 left-1 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] font-mono text-white pointer-events-none uppercase">
                     Input: {img.width}x{img.height}
                   </div>
@@ -666,7 +674,29 @@ const App: React.FC = () => {
                   <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none resize-none h-28 transition-all shadow-inner" value={selectedImage.title} onChange={(e) => updateImageTitle(selectedId!, e.target.value)} placeholder={t.headlinePlaceholder} />
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t.typeface}</label><select value={textConfig.fontFamily} onChange={(e) => setTextConfig(prev => ({ ...prev, fontFamily: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-[10px] font-bold outline-none cursor-pointer focus:bg-white transition-colors">{FONT_FAMILIES.map(f => <option key={f.name} value={f.value}>{f.name}</option>)}</select></div>
-                    <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t.fill}</label><div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200"><input type="color" value={textConfig.color} onChange={(e) => setTextConfig(prev => ({ ...prev, color: e.target.value }))} className="w-7 h-7 rounded-lg border-0 p-0 cursor-pointer shadow-sm overflow-hidden" /><span className="text-[10px] font-mono font-bold text-slate-400">{textConfig.color.toUpperCase()}</span></div></div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t.fill}</label>
+                      <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 group-focus-within:border-indigo-400 transition-colors">
+                        <div className="w-7 h-7 rounded-lg border-0 p-0 cursor-pointer shadow-sm overflow-hidden relative">
+                          <input 
+                            type="color" 
+                            value={isValidHex(textConfig.color) ? textConfig.color : '#000000'} 
+                            onChange={(e) => setTextConfig(prev => ({ ...prev, color: e.target.value }))} 
+                            className="absolute inset-0 w-[150%] h-[150%] -translate-x-1/4 -translate-y-1/4 cursor-pointer" 
+                          />
+                        </div>
+                        <input 
+                          type="text" 
+                          value={textConfig.color}
+                          onChange={(e) => {
+                            const val = formatHex(e.target.value);
+                            setTextConfig(prev => ({ ...prev, color: val }));
+                          }}
+                          className="w-full bg-transparent border-0 p-0 text-[10px] font-mono font-bold text-slate-600 outline-none focus:ring-0 uppercase"
+                          maxLength={7}
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-6 pt-2">
                     <div className="space-y-3"><div className="flex justify-between text-[9px] font-black text-slate-400 uppercase"><span>{t.fontSize}</span><span className="text-indigo-600">{textConfig.fontSize}pt</span></div><input type="range" min="40" max="280" value={textConfig.fontSize} onChange={(e) => setTextConfig(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-indigo-600" /></div>
@@ -675,7 +705,45 @@ const App: React.FC = () => {
                 </section>
                 <section className="space-y-4 pt-8 border-t border-slate-100">
                   <div className="flex items-center justify-between mb-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">{t.environment}</label><div className="flex bg-slate-100 p-1 rounded-lg"><button onClick={() => setBgSource('solid')} className={`px-2.5 py-1 text-[8px] font-black rounded-md uppercase transition-all ${bgSource === 'solid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>{t.solid}</button><button onClick={() => setBgSource('image')} className={`px-2.5 py-1 text-[8px] font-black rounded-md uppercase transition-all ${bgSource === 'image' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>{t.image}</button></div></div>
-                  <div className="space-y-5 animate-in">{bgSource === 'solid' ? (<div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100"><span className="text-[11px] font-bold text-slate-600 uppercase">{t.backdrop}</span><div className="flex items-center gap-2"><span className="text-[10px] font-mono text-slate-400">{bgColor.toUpperCase()}</span><input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-7 h-7 rounded-lg border-0 p-0 cursor-pointer shadow-sm overflow-hidden" /></div></div>) : (<div className="space-y-4"><div className="flex bg-slate-100 p-1.5 rounded-2xl"><button onClick={() => setBgUploadMode('single')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'single' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.unique}</button><button onClick={() => setBgUploadMode('panoramic')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'panoramic' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.panoramic}</button></div><div className="space-y-2"><button onClick={() => bgInputRef.current?.click()} className="w-full py-3 bg-white border border-slate-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm">{bgUploadMode === 'panoramic' ? t.uploadGlobal : t.uploadLocal}</button>{bgUploadMode === 'single' && selectedImage?.customBgUrl && (<button onClick={resetCustomBg} className="w-full py-1.5 text-[9px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">{t.resetShared}</button>)}<input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} /></div></div>)}</div>
+                  <div className="space-y-5 animate-in">
+                    {bgSource === 'solid' ? (
+                      <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100 group-focus-within:border-indigo-400 transition-colors">
+                        <span className="text-[11px] font-bold text-slate-600 uppercase whitespace-nowrap mr-2">{t.backdrop}</span>
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <input 
+                            type="text" 
+                            value={bgColor}
+                            onChange={(e) => {
+                              const val = formatHex(e.target.value);
+                              setBgColor(val);
+                            }}
+                            className="w-16 bg-transparent border-0 p-0 text-[10px] font-mono font-bold text-slate-600 text-right outline-none focus:ring-0 uppercase"
+                            maxLength={7}
+                          />
+                          <div className="w-7 h-7 rounded-lg border-0 p-0 cursor-pointer shadow-sm overflow-hidden relative shrink-0">
+                            <input 
+                              type="color" 
+                              value={isValidHex(bgColor) ? bgColor : '#ffffff'} 
+                              onChange={(e) => setBgColor(e.target.value)} 
+                              className="absolute inset-0 w-[150%] h-[150%] -translate-x-1/4 -translate-y-1/4 cursor-pointer" 
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                          <button onClick={() => setBgUploadMode('single')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'single' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.unique}</button>
+                          <button onClick={() => setBgUploadMode('panoramic')} className={`flex-1 py-1.5 text-[9px] font-black rounded-xl uppercase transition-all ${bgUploadMode === 'panoramic' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-500'}`}>{t.panoramic}</button>
+                        </div>
+                        <div className="space-y-2">
+                          <button onClick={() => bgInputRef.current?.click()} className="w-full py-3 bg-white border border-slate-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm">{bgUploadMode === 'panoramic' ? t.uploadGlobal : t.uploadLocal}</button>
+                          {bgUploadMode === 'single' && selectedImage?.customBgUrl && (<button onClick={resetCustomBg} className="w-full py-1.5 text-[9px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">{t.resetShared}</button>)}
+                          <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </section>
                 <section className="space-y-4 pt-8 border-t border-slate-100"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">{t.deviceRendering}</label><div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 mb-2"><div className="flex flex-col"><span className="text-[11px] font-black text-indigo-950 uppercase tracking-tight">{t.showChassis}</span><span className="text-[9px] text-indigo-400 font-bold uppercase mt-0.5">{t.compatibleFrame}</span></div><button onClick={() => setShowDeviceFrame(!showDeviceFrame)} className={`w-12 h-6 rounded-full relative transition-all duration-300 shadow-inner ${showDeviceFrame ? 'bg-indigo-600' : 'bg-slate-300'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-md ${showDeviceFrame ? 'left-7' : 'left-1'}`}></div></button></div>{showDeviceFrame && (<div className="space-y-3 pt-2"><div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase"><div className="flex items-center gap-2"><span>{t.bezelThickness}</span><button onClick={() => setBezelThickness(DEFAULT_BEZEL_THICKNESS)} className="text-indigo-600 hover:text-indigo-800 transition-colors p-0.5 hover:bg-indigo-50 rounded" title="Reset to default"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button></div><span className="text-indigo-600">{bezelThickness.toFixed(1)}%</span></div><input type="range" min="0.5" max="12.0" step="0.1" value={bezelThickness} onChange={(e) => setBezelThickness(parseFloat(e.target.value))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-indigo-600" /></div>)}</section>
                 <div className="pt-10"><button onClick={() => handleDownload(selectedImage)} className="w-full py-4 bg-slate-900 text-white font-black text-[11px] rounded-[1.5rem] hover:bg-black transition-all shadow-2xl uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>{t.downloadFrame}</button></div>
