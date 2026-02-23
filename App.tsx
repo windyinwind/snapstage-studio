@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
-import { STORE_PRESETS, Dimension, ImageState, LayoutMode, TextConfig } from './types';
-import { analyzeScreenshotColors } from './services/geminiService';
+import { STORE_PRESETS, Dimension, ImageState, LayoutMode, TextConfig, AppSettings } from './types';
+import { analyzeScreenshotColors, generateHeading } from './services/geminiService';
 
 const FONT_FAMILIES = [
   { name: 'Inter', value: "'Inter', sans-serif" },
@@ -62,9 +62,26 @@ const TRANSLATIONS: Record<string, any> = {
     headlineContent: 'Headline Content',
     environment: 'Environment',
     aiMatch: 'AI Match',
-    aiNotConnected: 'Gemini AI is not connected. Add your API_KEY to unlock smart color matching.',
+    aiWrite: 'AI Write',
+    aiWriting: 'AI Writing...',
+    aiNotConnected: 'AI not configured. Click to set up your API key.',
+    setupRequired: 'AI Setup Required',
+    setupRequiredDesc: 'To use smart features like color matching and headline generation, you need to configure an AI provider.',
+    configureNow: 'Configure Now',
     solid: 'Solid',
-    image: 'Image'
+    image: 'Image',
+    settings: 'Settings',
+    appContext: 'App Context',
+    appContextDesc: 'Describe this specific app to help AI write better headlines.',
+    syncContext: 'Sync Context',
+    aiModel: 'AI Model',
+    aiProvider: 'AI Provider',
+    apiBaseUrl: 'API Base URL',
+    apiKey: 'API Key',
+    save: 'Save',
+    close: 'Close',
+    modelDesc: 'Choose the model for AI features.',
+    appDescPlaceholder: 'e.g. A meditation app for busy professionals...'
   },
   zh: {
     library: '媒体库',
@@ -105,9 +122,26 @@ const TRANSLATIONS: Record<string, any> = {
     headlineContent: '标题内容',
     environment: '环境',
     aiMatch: '智能配色',
-    aiNotConnected: 'Gemini AI 未连接。请添加 API_KEY 以解锁智能配色功能。',
+    aiWrite: '智能文案',
+    aiWriting: '正在生成...',
+    aiNotConnected: 'AI 未配置。点击以设置您的 API Key。',
+    setupRequired: '需要 AI 设置',
+    setupRequiredDesc: '要使用智能配色和标题生成等功能，您需要配置 AI 提供商。',
+    configureNow: '立即配置',
     solid: '纯色',
-    image: '图片'
+    image: '图片',
+    settings: '设置',
+    appContext: '应用上下文',
+    appContextDesc: '描述此特定应用，以帮助 AI 编写更好的标题。',
+    syncContext: '同步上下文',
+    aiModel: 'AI 模型',
+    aiProvider: 'AI Provider',
+    apiBaseUrl: 'API 地址',
+    apiKey: 'API Key',
+    save: '保存',
+    close: '关闭',
+    modelDesc: '选择用于 AI 功能的模型。',
+    appDescPlaceholder: '例如：一款面向忙碌专业人士的冥想应用...'
   }
 };
 
@@ -129,6 +163,19 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [writingIds, setWritingIds] = useState<Set<string>>(new Set());
+  const [isBatchWriting, setIsBatchWriting] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const saved = localStorage.getItem('snapstage_settings');
+    return saved ? JSON.parse(saved) : {
+      provider: 'gemini',
+      appDescription: '',
+      modelName: 'gemini-3-flash-preview',
+      apiBaseUrl: 'https://api.openai.com/v1',
+      customApiKey: ''
+    };
+  });
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [panoramicBgUrl, setPanoramicBgUrl] = useState<string | null>(null);
   
@@ -157,6 +204,14 @@ const App: React.FC = () => {
     setImages(prev => prev.map(img => ({
       ...img,
       title: selectedImage.title
+    })));
+  };
+
+  const syncContextToAll = () => {
+    if (!images.length || !selectedImage) return;
+    setImages(prev => prev.map(img => ({
+      ...img,
+      appContext: selectedImage.appContext
     })));
   };
 
@@ -387,8 +442,8 @@ const App: React.FC = () => {
   }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
+    const files = Array.from(e.target.files || []) as File[];
+    files.forEach((file: File) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const img = new Image();
@@ -396,7 +451,7 @@ const App: React.FC = () => {
           const newId = Math.random().toString(36).substr(2, 9);
           const newImage: ImageState = {
             id: newId, originalUrl: event.target?.result as string, processedUrl: null,
-            name: file.name, width: img.width, height: img.height, title: '', customBgUrl: null
+            name: file.name, width: img.width, height: img.height, title: '', appContext: '', customBgUrl: null
           };
           setImages(prev => {
             const updated = [...prev, newImage];
@@ -434,14 +489,73 @@ const App: React.FC = () => {
   };
 
   const harmonizeTheme = async (imgState: ImageState) => {
+    if (!hasApiKey) {
+      setShowSettings(true);
+      return;
+    }
     setAnalyzingId(imgState.id);
     const base64 = imgState.originalUrl.split(',')[1];
     try {
-      const suggestions = await analyzeScreenshotColors(base64);
+      const suggestions = await analyzeScreenshotColors(base64, settings);
       setBgColor(suggestions.backgroundColor);
       setBgSource('solid');
       setTextConfig(prev => ({ ...prev, color: suggestions.accentColor }));
     } catch (err) { console.error(err); } finally { setAnalyzingId(null); }
+  };
+
+  const handleAiWrite = async (imgState: ImageState) => {
+    if (!hasApiKey) {
+      setShowSettings(true);
+      return;
+    }
+    setWritingIds(prev => new Set(prev).add(imgState.id));
+    const base64 = imgState.originalUrl.split(',')[1];
+    try {
+      const heading = await generateHeading(base64, locale, imgState.appContext, settings);
+      if (heading) {
+        updateImageTitle(imgState.id, heading);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setWritingIds(prev => {
+        const next = new Set(prev);
+        next.delete(imgState.id);
+        return next;
+      });
+    }
+  };
+
+  const handleAiWriteAll = async () => {
+    if (!hasApiKey) {
+      setShowSettings(true);
+      return;
+    }
+    if (images.length === 0) return;
+    
+    setIsBatchWriting(true);
+    try {
+      await Promise.all(images.map(async (img) => {
+        setWritingIds(prev => new Set(prev).add(img.id));
+        const base64 = img.originalUrl.split(',')[1];
+        try {
+          const heading = await generateHeading(base64, locale, img.appContext, settings);
+          if (heading) {
+            updateImageTitle(img.id, heading);
+          }
+        } finally {
+          setWritingIds(prev => {
+            const next = new Set(prev);
+            next.delete(img.id);
+            return next;
+          });
+        }
+      }));
+    } catch (err) {
+      console.error("Batch AI Write failed:", err);
+    } finally {
+      setIsBatchWriting(false);
+    }
   };
 
   useEffect(() => {
@@ -466,6 +580,10 @@ const App: React.FC = () => {
 
   const updateImageTitle = (id: string, title: string) => {
     setImages(prev => prev.map(img => img.id === id ? { ...img, title } : img));
+  };
+
+  const updateImageContext = (id: string, appContext: string) => {
+    setImages(prev => prev.map(img => img.id === id ? { ...img, appContext } : img));
   };
 
   const handleDownload = (img: ImageState) => {
@@ -501,10 +619,10 @@ const App: React.FC = () => {
         });
 
         // zip.generateAsync may return any or unknown, cast it to ensure compatibility with createObjectURL
-        const content = await zip.generateAsync({ type: 'blob' });
+        const content = await zip.generateAsync({ type: 'blob' }) as Blob;
         const link = document.createElement('a');
         // Ensure the generated content is treated as a Blob for URL.createObjectURL
-        link.href = URL.createObjectURL(content as Blob);
+        link.href = URL.createObjectURL(content);
         link.download = `SnapStage-Export-${targetDimension.width}x${targetDimension.height}.zip`;
         link.click();
         URL.revokeObjectURL(link.href);
@@ -524,7 +642,7 @@ const App: React.FC = () => {
     }, {} as Record<string, Dimension[]>);
   }, []);
 
-  const hasApiKey = !!(typeof process !== "undefined" && process.env.API_KEY);
+  const hasApiKey = !!(typeof process !== "undefined" && process.env.API_KEY) || (settings.provider === 'custom' && !!settings.customApiKey);
 
   // Helper to ensure hex code starts with #
   const formatHex = (val: string) => val.startsWith('#') ? val : `#${val}`;
@@ -618,6 +736,16 @@ const App: React.FC = () => {
                 <button key={lang.value} onClick={() => setLocale(lang.value)} className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg transition-all ${locale === lang.value ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>{lang.label}</button>
               ))}
             </div>
+            <button 
+              onClick={() => setShowSettings(true)}
+              className="p-2 bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-xl transition-all"
+              title={t.settings}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
             <div className="flex items-center gap-3">
               {(isProcessing || isExporting) && (
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-full animate-pulse">
@@ -646,7 +774,21 @@ const App: React.FC = () => {
                   {images.map((img, idx) => (
                     <div key={img.id} ref={(el) => { if (el) itemRefs.current.set(img.id, el); else itemRefs.current.delete(img.id); }} draggable onDragStart={(e) => handleDragStart(e, idx)} onDragOver={(e) => handleDragOver(e, idx)} onDragEnd={handleDragEnd} onClick={() => setSelectedId(img.id)} className={`relative shrink-0 transition-all duration-300 ease-in-out cursor-grab active:cursor-grabbing ${selectedId === img.id ? 'scale-100 z-10' : 'scale-[0.92] opacity-60 hover:opacity-100'} ${draggedIdx === idx ? 'opacity-20 scale-90 grayscale' : 'opacity-100'}`}>
                       <div className={`shadow-[0_50px_100px_rgba(0,0,0,0.12)] rounded-[3rem] overflow-hidden border-[8px] transition-all bg-white ${selectedId === img.id ? 'border-indigo-600 ring-[20px] ring-indigo-500/5' : 'border-white'}`}>
-                        {previewCache[img.id] ? <img src={previewCache[img.id]} alt={img.name} className="h-[60vh] lg:h-[75vh] w-auto block select-none pointer-events-none" /> : <div className="h-[60vh] lg:h-[75vh] aspect-[9/19.5] flex items-center justify-center"><div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}
+                        {previewCache[img.id] ? (
+                          <div className="relative">
+                            <img src={previewCache[img.id]} alt={img.name} className="h-[60vh] lg:h-[75vh] w-auto block select-none pointer-events-none" />
+                            {writingIds.has(img.id) && (
+                              <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 animate-in">
+                                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{t.aiWriting}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="h-[60vh] lg:h-[75vh] aspect-[9/19.5] flex items-center justify-center">
+                            <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                          </div>
+                        )}
                       </div>
                       {selectedId === img.id && <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-6 py-2 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl">{t.editing}</div>}
                     </div>
@@ -667,10 +809,55 @@ const App: React.FC = () => {
             {selectedImage ? (
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10">
                 <div className="flex items-center justify-between"><h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">{t.properties}</h3>
-                  <div className="flex items-center gap-2">{hasApiKey ? (<button onClick={() => harmonizeTheme(selectedImage)} className="group relative p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clipRule="evenodd" /></svg><span className="absolute -left-20 -top-8 bg-slate-900 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{t.aiMatch}</span></button>) : (<div className="group relative p-2.5 bg-slate-50 text-slate-300 rounded-xl cursor-help"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><div className="absolute right-0 top-10 w-48 bg-white border border-slate-200 p-3 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none"><p className="text-[9px] font-bold text-slate-900 leading-tight">{t.aiNotConnected}</p></div></div>)}</div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => harmonizeTheme(selectedImage)} 
+                      disabled={analyzingId === selectedImage.id}
+                      className={`group relative p-2.5 rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50 ${hasApiKey ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                    >
+                      {analyzingId === selectedImage.id ? (
+                        <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin group-hover:border-white group-hover:border-t-transparent"></div>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {!hasApiKey && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 border-2 border-white rounded-full"></div>}
+                      <span className="absolute -left-20 -top-8 bg-slate-900 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{hasApiKey ? t.aiMatch : t.aiNotConnected}</span>
+                    </button>
+                  </div>
                 </div>
                 <section className="space-y-4">
-                  <div className="flex items-center justify-between"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.headlineContent}</label><button onClick={applyToAll} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">{t.syncText}</button></div>
+                  <div className="flex items-center justify-between"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.appContext}</label><button onClick={syncContextToAll} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">{t.syncContext}</button></div>
+                  <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none resize-none h-24 transition-all shadow-inner" value={selectedImage.appContext} onChange={(e) => updateImageContext(selectedId!, e.target.value)} placeholder={t.appDescPlaceholder} />
+                </section>
+                <section className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.headlineContent}</label>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={handleAiWriteAll} 
+                        disabled={isBatchWriting || writingIds.size > 0}
+                        className={`text-[9px] font-bold uppercase hover:underline flex items-center gap-1 disabled:opacity-50 ${hasApiKey ? 'text-indigo-600' : 'text-slate-400'}`}
+                      >
+                        {isBatchWriting ? (
+                          <>
+                            <div className="w-2 h-2 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                            {t.aiWriting}
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                            {t.aiWrite}
+                            {!hasApiKey && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full ml-0.5"></span>}
+                          </>
+                        )}
+                      </button>
+                      <button onClick={applyToAll} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">{t.syncText}</button>
+                    </div>
+                  </div>
                   <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none resize-none h-28 transition-all shadow-inner" value={selectedImage.title} onChange={(e) => updateImageTitle(selectedId!, e.target.value)} placeholder={t.headlinePlaceholder} />
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t.typeface}</label><select value={textConfig.fontFamily} onChange={(e) => setTextConfig(prev => ({ ...prev, fontFamily: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-[10px] font-bold outline-none cursor-pointer focus:bg-white transition-colors">{FONT_FAMILIES.map(f => <option key={f.name} value={f.value}>{f.name}</option>)}</select></div>
@@ -764,6 +951,109 @@ const App: React.FC = () => {
         @keyframes zoom-in { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .animate-in { animation: fade-in 0.4s ease-out, zoom-in 0.4s cubic-bezier(0.2, 0, 0, 1); }
       `}</style>
+
+      {showSettings && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowSettings(false)}></div>
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl relative overflow-hidden animate-in">
+            <div className="p-8 space-y-8">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">{t.settings}</h2>
+                <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {!hasApiKey && (
+                <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl space-y-2">
+                  <h3 className="text-[11px] font-black text-amber-900 uppercase tracking-tight flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    {t.setupRequired}
+                  </h3>
+                  <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
+                    {t.setupRequiredDesc}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t.aiProvider}</label>
+                  <div className="flex bg-slate-100 p-1 rounded-2xl">
+                    <button onClick={() => setSettings(prev => ({ ...prev, provider: 'gemini' }))} className={`flex-1 py-2 text-[10px] font-black rounded-xl uppercase transition-all ${settings.provider === 'gemini' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>Gemini</button>
+                    <button onClick={() => setSettings(prev => ({ ...prev, provider: 'custom' }))} className={`flex-1 py-2 text-[10px] font-black rounded-xl uppercase transition-all ${settings.provider === 'custom' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>Custom (OpenAI)</button>
+                  </div>
+                </div>
+
+                {settings.provider === 'custom' && (
+                  <>
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t.apiBaseUrl}</label>
+                      <input 
+                        type="text"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none transition-all shadow-inner"
+                        value={settings.apiBaseUrl}
+                        onChange={(e) => setSettings(prev => ({ ...prev, apiBaseUrl: e.target.value }))}
+                        placeholder="https://api.openai.com/v1"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t.apiKey}</label>
+                      <input 
+                        type="password"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none transition-all shadow-inner"
+                        value={settings.customApiKey}
+                        onChange={(e) => setSettings(prev => ({ ...prev, customApiKey: e.target.value }))}
+                        placeholder="sk-..."
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t.aiModel}</label>
+                  <p className="text-[10px] text-slate-400 font-medium leading-relaxed">{t.modelDesc}</p>
+                  {settings.provider === 'gemini' ? (
+                    <select 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none cursor-pointer transition-all"
+                      value={settings.modelName}
+                      onChange={(e) => setSettings(prev => ({ ...prev, modelName: e.target.value }))}
+                    >
+                      <option value="gemini-3-flash-preview">Gemini 3 Flash (Fast & Smart)</option>
+                      <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Most Capable)</option>
+                      <option value="gemini-2.5-flash-latest">Gemini 2.5 Flash</option>
+                    </select>
+                  ) : (
+                    <input 
+                      type="text"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none transition-all shadow-inner"
+                      value={settings.modelName}
+                      onChange={(e) => setSettings(prev => ({ ...prev, modelName: e.target.value }))}
+                      placeholder="gpt-4o, claude-3-5-sonnet..."
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  onClick={() => {
+                    localStorage.setItem('snapstage_settings', JSON.stringify(settings));
+                    setShowSettings(false);
+                  }}
+                  className="flex-1 py-4 bg-indigo-600 text-white font-black text-[11px] rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 uppercase tracking-widest"
+                >
+                  {t.save}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

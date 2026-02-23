@@ -52,5 +52,14 @@ export interface ImageState {
   width: number;
   height: number;
   title: string;
+  appContext: string;
   customBgUrl: string | null;
+}
+
+export interface AppSettings {
+  provider: 'gemini' | 'custom';
+  appDescription: string; // Keep for legacy/default but we'll use per-image mostly
+  modelName: string;
+  apiBaseUrl: string;
+  customApiKey: string;
 }
