@@ -63,6 +63,7 @@ const TRANSLATIONS: Record<string, any> = {
     environment: 'Environment',
     aiMatch: 'AI Match',
     aiWrite: 'AI Write',
+    aiWriteAll: 'AI Write All',
     aiWriting: 'AI Writing...',
     aiNotConnected: 'AI not configured. Click to set up your API key.',
     setupRequired: 'AI Setup Required',
@@ -123,6 +124,7 @@ const TRANSLATIONS: Record<string, any> = {
     environment: '环境',
     aiMatch: '智能配色',
     aiWrite: '智能文案',
+    aiWriteAll: '批量生成',
     aiWriting: '正在生成...',
     aiNotConnected: 'AI 未配置。点击以设置您的 API Key。',
     setupRequired: '需要 AI 设置',
@@ -511,7 +513,7 @@ const App: React.FC = () => {
     setWritingIds(prev => new Set(prev).add(imgState.id));
     const base64 = imgState.originalUrl.split(',')[1];
     try {
-      const heading = await generateHeading(base64, locale, imgState.appContext, settings);
+      const heading = await generateHeading(base64, locale, settings.appDescription, settings);
       if (heading) {
         updateImageTitle(imgState.id, heading);
       }
@@ -539,7 +541,7 @@ const App: React.FC = () => {
         setWritingIds(prev => new Set(prev).add(img.id));
         const base64 = img.originalUrl.split(',')[1];
         try {
-          const heading = await generateHeading(base64, locale, img.appContext, settings);
+          const heading = await generateHeading(base64, locale, settings.appDescription, settings);
           if (heading) {
             updateImageTitle(img.id, heading);
           }
@@ -828,13 +830,32 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <section className="space-y-4">
-                  <div className="flex items-center justify-between"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.appContext}</label><button onClick={syncContextToAll} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">{t.syncContext}</button></div>
-                  <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none resize-none h-24 transition-all shadow-inner" value={selectedImage.appContext} onChange={(e) => updateImageContext(selectedId!, e.target.value)} placeholder={t.appDescPlaceholder} />
+                  <div className="flex items-center justify-between"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.appContext}</label></div>
+                  <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none resize-none h-24 transition-all shadow-inner" value={settings.appDescription} onChange={(e) => setSettings(prev => ({ ...prev, appDescription: e.target.value }))} placeholder={t.appDescPlaceholder} />
                 </section>
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.headlineContent}</label>
                     <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => handleAiWrite(selectedImage)} 
+                        disabled={writingIds.has(selectedImage.id)}
+                        className={`text-[9px] font-bold uppercase hover:underline flex items-center gap-1 disabled:opacity-50 ${hasApiKey ? 'text-indigo-600' : 'text-slate-400'}`}
+                      >
+                        {writingIds.has(selectedImage.id) ? (
+                          <>
+                            <div className="w-2 h-2 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                            {t.aiWriting}
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                            {t.aiWrite}
+                          </>
+                        )}
+                      </button>
                       <button 
                         onClick={handleAiWriteAll} 
                         disabled={isBatchWriting || writingIds.size > 0}
@@ -848,14 +869,13 @@ const App: React.FC = () => {
                         ) : (
                           <>
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                              <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                             </svg>
-                            {t.aiWrite}
+                            {t.aiWriteAll}
                             {!hasApiKey && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full ml-0.5"></span>}
                           </>
                         )}
                       </button>
-                      <button onClick={applyToAll} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">{t.syncText}</button>
                     </div>
                   </div>
                   <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none resize-none h-28 transition-all shadow-inner" value={selectedImage.title} onChange={(e) => updateImageTitle(selectedId!, e.target.value)} placeholder={t.headlinePlaceholder} />
